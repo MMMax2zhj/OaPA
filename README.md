@@ -1,9 +1,11 @@
-# OaPA
+# OaPA (CoMPA4R)
 
 OaPA (Observation-anchored Prediction Aggregation) detects fake news under
-missing modalities. This repository contains the complete CoMPA4R four-route
-experiment: staged MPD learning, VPC, DCR, singleton experts, deployed Stage-J
-selection, VPA calibration, frozen evaluation, audit, and table export.
+missing modalities. **CoMPA4R is the complete code implementation of OaPA**;
+OaPA is the paper-facing method name. This repository contains the complete
+four-route implementation: staged MPD learning, VPC, DCR, singleton experts,
+deployed Stage-J selection, VPA calibration, frozen evaluation, audit, and
+table export.
 
 ## Setup
 

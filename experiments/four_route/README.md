@@ -1,6 +1,8 @@
 # OaPA 4R Experiment Protocol
 
-This directory freezes the complete OaPA four-route experiment:
+**CoMPA4R is the complete code implementation of OaPA.** The paper-facing
+method name is OaPA; CoMPA4R refers to this complete four-route codebase.
+This directory freezes that implementation:
 
 - staged MPD backbone training;
 - VPC and DCR component switches;
