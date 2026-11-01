@@ -1,4 +1,4 @@
-"""Dimension-aware data, masks and metrics for the 20261007 full experiment."""
+"""Data loading, modality masks, and metrics for OaPA training and testing."""
 from dataclasses import dataclass
 from itertools import combinations
 import hashlib
@@ -6,6 +6,9 @@ import json
 from pathlib import Path
 import numpy as np
 import torch
+
+
+PROTOCOL_NAMESPACE = "ICC-P1-v1"
 
 
 def file_sha(path):
@@ -126,7 +129,7 @@ def fixed_masks(ids,m,split,p,repeat):
     # ID-keyed, class-independent and shared by every method/seed.
     result=[]
     for identity in ids:
-        key=f'ICC-P1-v1|{split}|{p:.1f}|{repeat}|{identity}'
+        key=f'{PROTOCOL_NAMESPACE}|{split}|{p:.1f}|{repeat}|{identity}'
         seed=int.from_bytes(hashlib.sha256(key.encode()).digest()[:8],'little')
         result.append(sample_masks(1,m,np.random.default_rng(seed),p=p)[0])
     return np.array(result)

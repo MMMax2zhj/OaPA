@@ -1,4 +1,4 @@
-"""Sequence backbones using the locked MPLMM implementation and G2D fusion.
+"""Modality encoders, prompt completion, and cross-modal fusion for OaPA.
 
 All sequences are fixed-length, padding-free cache representations. Raw encoders
 remain frozen outside this module. T,V,A is the public order; upstream uses T,A,V.
@@ -8,11 +8,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 from .upstream import mplmm_source, mplmm_config, mplmm_missing_modes
-from .model import sanitize, mask_codes
-
-
-def pooled(features):
-    return tuple(x.mean(1) if x.ndim == 3 else x for x in features)
+from .config import mask_codes, pooled
 
 
 class SequenceEncoder(nn.Module):
@@ -52,11 +48,11 @@ class SequenceTeacher(nn.Module):
         return self.head(self.projector(x))
 
 
-class FullMulT(nn.Module):
+class VideoFusion(nn.Module):
     """The six directed crossmodal stacks and three memory stacks from MPLMM.
 
-    With prompts=True complete() and fuse() expose the original PromptModel
-    boundary for ICC conditions and reconstruction supervision. With no added
+    complete() and fuse() expose the PromptModel boundary for VPC and
+    reconstruction supervision. With no added
     condition this path is numerically checked against upstream forward().
     """
     def __init__(self, cfg, prompts=False):
@@ -128,11 +124,13 @@ class FullMulT(nn.Module):
         return self.core(t, a, v)
 
 
-class SequenceCompensation(nn.Module):
+class VisibilityConditionedCompletion(nn.Module):
+    """VPC modules attached to the video fusion path."""
+
     def __init__(self, cfg):
         super().__init__()
         self.cfg = cfg
-        self.fusion = FullMulT(cfg, prompts=True)
+        self.fusion = VideoFusion(cfg, prompts=True)
         self.decoders = nn.ModuleList([nn.Linear(cfg.hidden, d) for d in cfg.input_dims])
         if cfg.conditional:
             self.topic_prototypes = nn.Parameter(torch.randn(cfg.topics, cfg.hidden)*.02)
@@ -141,14 +139,6 @@ class SequenceCompensation(nn.Module):
             self.missing_prompt = nn.Embedding(8, cfg.hidden)
             self.cross_attention = nn.MultiheadAttention(cfg.hidden, cfg.heads, cfg.dropout, batch_first=True)
             self.condition_norm = nn.LayerNorm(cfg.hidden)
-
-    def initialize_from_observed(self, observed):
-        # Copy selected stage-A fusion weights; leave new prompts initialized.
-        if isinstance(observed.fusion, FullMulT):
-            source = observed.fusion.core.state_dict()
-            target = self.fusion.core.state_dict()
-            shared = {k: v for k, v in source.items() if k in target and target[k].shape == v.shape}
-            self.fusion.core.load_state_dict(shared, strict=False)
 
     def prepare(self, sequences, mask):
         generated, prompts = self.fusion.complete(sequences, mask)
@@ -169,9 +159,3 @@ class SequenceCompensation(nn.Module):
                 completed.append(torch.where(mask[:, k, None, None], x, conditioned))
             generated = tuple(completed)
         return generated, prompts
-
-    def forward(self, sequences, mask):
-        generated, prompts = self.prepare(sequences, mask)
-        logits = self.fusion.fuse(generated, prompts)
-        reconstructed = tuple(dec(x.mean(1)) for dec, x in zip(self.decoders, generated))
-        return {"logits": logits, "reconstructed": reconstructed, "generated": generated}

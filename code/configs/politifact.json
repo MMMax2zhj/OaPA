@@ -1,6 +1,5 @@
 {
-  "method": "CoMPA-Backbone",
-  "variant": "F111",
+  "method": "OaPA-Backbone",
   "model": {
     "hidden": 128,
     "heads": 4,
@@ -23,6 +22,6 @@
     "weight_decay": 0.01,
     "backbone_lr_scale": 0.1
   },
-  "lr": 0.0002,
+  "lr": 5e-05,
   "aux_scale": 0.5
 }

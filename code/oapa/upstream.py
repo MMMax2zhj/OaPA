@@ -24,7 +24,7 @@ def _load(name, path, rename_modules=False):
     if rename_modules:
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom) and node.module and node.module.startswith("modules."):
-                node.module = "_icc_mplmm." + node.module[len("modules."):]
+                node.module = "_oapa_mplmm." + node.module[len("modules."):]
     module = types.ModuleType(name)
     module.__file__ = str(path)
     module.__package__ = name.rpartition(".")[0]
@@ -35,16 +35,16 @@ def _load(name, path, rename_modules=False):
 
 @lru_cache(None)
 def mplmm_source():
-    package = types.ModuleType("_icc_mplmm")
+    package = types.ModuleType("_oapa_mplmm")
     package.__path__ = [str(ROOT / "MPLMM/modules")]
     sys.modules[package.__name__] = package
     for filename in ("multihead_attention", "position_embedding", "transformer"):
-        _load(f"_icc_mplmm.{filename}", ROOT / f"MPLMM/modules/{filename}.py", True)
-    return _load("_icc_mplmm.model", ROOT / "MPLMM/src/model.py", True)
+        _load(f"_oapa_mplmm.{filename}", ROOT / f"MPLMM/modules/{filename}.py", True)
+    return _load("_oapa_mplmm.model", ROOT / "MPLMM/src/model.py", True)
 
 
 def mplmm_config(dims, hidden=256, seq_len=(1, 1, 1), heads=4):
-    # MPLMM order is language, AUDIO, VISUAL; public ICC order is T,V,A.
+    # MPLMM order is language, AUDIO, VISUAL; OaPA's public order is T,V,A.
     return SimpleNamespace(orig_d_l=dims[0], orig_d_a=dims[2], orig_d_v=dims[1],
         proj_dim=hidden, prompt_dim=hidden, prompt_length=2, num_heads=heads,
         layers=1, attn_dropout=0., attn_dropout_a=0., attn_dropout_v=0.,
@@ -53,7 +53,7 @@ def mplmm_config(dims, hidden=256, seq_len=(1, 1, 1), heads=4):
 
 
 @lru_cache(None)
-def g2d_losses():
+def distillation_losses():
     path = ROOT / "G2D/student.py"
     tree = ast.parse(path.read_text(encoding="utf-8"))
     functions = [n for n in tree.body if isinstance(n, ast.FunctionDef)

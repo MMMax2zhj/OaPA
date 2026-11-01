@@ -11,3 +11,4 @@ outputs/
 *.tar.gz
 *.zip
 .env
+.oapa-test-*

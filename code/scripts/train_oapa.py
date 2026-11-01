@@ -1,4 +1,4 @@
-"""Train the CoMPA backbone with staged VPC, MPD, and DCR objectives.
+"""Train the OaPA backbone with staged VPC, MPD, and DCR objectives.
 
 The independent evaluator is permitted only after a frozen selection manifest.
 """
@@ -18,11 +18,13 @@ import torch.nn.functional as F
 
 ROOT=Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(ROOT/'code'))
-from icc.full_protocol import load_cache,views,sample_masks,evaluate,file_sha
-from icc.full_models import unified_model
-from icc.backbones import SequenceTeacher
-from icc.racl import IMOLRACL
-from icc.upstream import g2d_losses
+from oapa.backbone import build_oapa_backbone
+from oapa.layers import SequenceTeacher
+from oapa.objectives import (
+    DiscriminativeContrastiveRegularization,
+    ModalityPrioritizedDistillation,
+)
+from oapa.protocol import binary_metrics,evaluate,file_sha,load_cache,sample_masks,views
 
 
 RECIPE={'stages':{'teachers':10,'A':20,'B':10,'J':10},'batch_size':16,'optimizer':'AdamW','weight_decay':.01,'backbone_lr_scale':.1}
@@ -30,72 +32,42 @@ DEFAULT_MODEL={'hidden':128,'heads':4,'layers':2,'memory_layers':3,'encoder_laye
 
 
 def implementation_hash():
-    paths=sorted((ROOT/'code/icc').glob('*.py'))+[Path(__file__)]
+    paths=sorted((ROOT/'code/oapa').glob('*.py'))+[Path(__file__)]
     return hashlib.sha256('\n'.join(p.relative_to(ROOT).as_posix()+':'+file_sha(p) for p in paths).encode()).hexdigest()
 
 
-def random_racl(z,labels,ids,groups,rng):
-    unit=F.normalize(z,dim=-1);similarity=unit@unit.T;n=len(z)
-    terms=[];coverage={'attempted':n,'used':0,'skipped':0,'no_positive':0,'no_negative':0}
-    for i in range(n):
-        pos=[j for j in range(n) if ids[i]!=ids[j] and groups[i]!=groups[j] and labels[i]==labels[j]]
-        neg=[j for j in range(n) if ids[i]!=ids[j] and groups[i]!=groups[j] and labels[i]!=labels[j]]
-        coverage['no_positive']+=not bool(pos);coverage['no_negative']+=not bool(neg)
-        if pos and neg:
-            p=pos[int(rng.integers(len(pos)))];q=neg[int(rng.integers(len(neg)))]
-            terms.append(F.softplus(similarity[i,q]-similarity[i,p]))
-    coverage['used']=len(terms);coverage['skipped']=n-len(terms)
-    return torch.stack(terms).mean() if terms else z.sum()*0,coverage
-
-
-def unified_loss(model,batch,mask,teachers,stage,variant,aux_scale,rng):
+def backbone_loss(model,batch,mask,teachers,stage,aux_scale):
     out=model(batch.features,mask);m=mask.shape[1]
     ce=F.cross_entropy(out['logits'],batch.labels)
     loss=ce;stats={'ce':float(ce.detach())};teacher_logits=None
-    distill=not (variant.startswith('F') and variant[1]=='0')
-    completion=not (variant.startswith('F') and variant[2]=='0')
-    use_racl=not (variant.startswith('F') and variant[3]=='0')
     if stage in ('A','J'):
         targets=batch.labels[:,None].expand(-1,m).flatten()
         branch=F.cross_entropy(out['branch_logits'].flatten(0,1),targets,reduction='none').reshape_as(mask)[mask].mean()
         loss=loss+.25*branch;stats['branch_ce']=float(branch.detach())
-        if distill:
-            with torch.no_grad():
-                clean=tuple(torch.where(mask[:,k,None,None],x,torch.zeros_like(x)) for k,x in enumerate(batch.features))
-                tf=torch.stack([t.projector(x) for t,x in zip(teachers,clean)],1)
-                teacher_logits=torch.stack([t.head(tf[:,k]) for k,t in enumerate(teachers)],1)
-            kd=ce*0;feature=ce*0
-            for k in range(m):
-                chosen=mask[:,k]
-                if chosen.any():
-                    kd=kd+chosen.sum()*g2d_losses().distillation_loss(out['logits'][chosen],teacher_logits[chosen,k],2.)
-                    feature=feature+chosen.sum()*g2d_losses().feature_loss(out['projected'][chosen,k],tf[chosen,k])
-            kd=kd/mask.sum();feature=feature/mask.sum()
-            loss=loss+aux_scale*(.1*kd+.1*feature)
-            stats.update(kd=float(kd.detach()),feature_kd=float(feature.detach()))
+        with torch.no_grad():
+            clean=tuple(torch.where(mask[:,k,None,None],x,torch.zeros_like(x)) for k,x in enumerate(batch.features))
+            teacher_features=torch.stack([t.projector(x) for t,x in zip(teachers,clean)],1)
+            teacher_logits=torch.stack([t.head(teacher_features[:,k]) for k,t in enumerate(teachers)],1)
+        kd,feature=ModalityPrioritizedDistillation()(out['logits'],out['projected'],teacher_logits,teacher_features,mask)
+        loss=loss+aux_scale*(.1*kd+.1*feature)
+        stats.update(kd=float(kd.detach()),feature_kd=float(feature.detach()))
     if stage in ('B','J'):
-        if completion:
-            errors=[]
-            for k,(pred,target) in enumerate(zip(out['reconstructed'],batch.features)):
-                chosen=~mask[:,k]
-                if chosen.any(): errors.append(1-F.cosine_similarity(pred[chosen],target[chosen].mean(1).detach(),dim=-1))
-            rec=torch.cat(errors).mean() if errors else ce*0
-            loss=loss+aux_scale*.1*rec;stats['reconstruction']=float(rec.detach())
-        if use_racl:
-            if variant=='S-random':
-                racl,coverage=random_racl(out['representation'],batch.labels,batch.ids,batch.groups,rng)
-            else:
-                racl,coverage=IMOLRACL()(out['representation'],batch.labels,batch.ids,batch.groups)
-                coverage.pop('pairs')
-            loss=loss+aux_scale*.1*racl;stats.update(racl=float(racl.detach()),racl_coverage=coverage)
+        errors=[]
+        for k,(pred,target) in enumerate(zip(out['reconstructed'],batch.features)):
+            chosen=~mask[:,k]
+            if chosen.any(): errors.append(1-F.cosine_similarity(pred[chosen],target[chosen].mean(1).detach(),dim=-1))
+        reconstruction=torch.cat(errors).mean() if errors else ce*0
+        loss=loss+aux_scale*.1*reconstruction
+        stats['reconstruction']=float(reconstruction.detach())
+        dcr,coverage=DiscriminativeContrastiveRegularization()(out['representation'],batch.labels,batch.ids,batch.groups)
+        coverage.pop('pairs')
+        loss=loss+aux_scale*.1*dcr
+        stats.update(dcr=float(dcr.detach()),dcr_coverage=coverage)
     return loss,stats,teacher_logits,out
 
 
-def save_checkpoint(path,model,method,settings,variant,stage,extra=None):
-    state={'method':method,'model_settings':settings,'variant':variant,'stage':stage,'model':model.state_dict()}
-    if hasattr(model,'extra_state'): state['extra']=model.extra_state()
-    if extra is not None: state['metadata']=extra
-    torch.save(state,path)
+def save_checkpoint(path,model,stage):
+    model.save(path,metadata={'stage':stage})
 
 
 def main():
@@ -107,8 +79,8 @@ def main():
     a=p.parse_args()
     start_implementation=implementation_hash()
     settings=json.loads(Path(a.config).read_text(encoding='utf-8'))
-    method=settings['method'];variant=settings.get('variant','F111')
-    if method != 'CoMPA-Backbone': raise ValueError('Only CoMPA-Backbone is supported')
+    method=settings['method']
+    if method != 'OaPA-Backbone': raise ValueError('Only OaPA-Backbone is supported')
     recipe=copy.deepcopy(settings.get('recipe',RECIPE));model_settings={**DEFAULT_MODEL,**settings.get('model',{})}
     if a.smoke_epochs is not None:
         recipe['stages']={s:a.smoke_epochs for s in recipe['stages']}
@@ -128,11 +100,8 @@ def main():
         fit=fit.select(slice(0,a.fit_limit));val=val.select(slice(0,a.fit_limit))
     del splits
     device=a.device
-    model=unified_model(dims,lengths,model_settings,variant).to(device)
-    teachers=None
-    distill=not (variant.startswith('F') and variant[1]=='0')
-    if distill:
-        teachers=nn.ModuleList([SequenceTeacher(d,model.cfg) for d in dims]).to(device)
+    model=build_oapa_backbone(dims,lengths,model_settings).to(device)
+    teachers=nn.ModuleList([SequenceTeacher(d,model.cfg) for d in dims]).to(device)
     selection={};costs={};epochs=[];mask_schedule={};started=time.perf_counter();validation_calls=0
     batch_size=recipe['batch_size']
     for sidx,(stage,budget) in enumerate(recipe['stages'].items()):
@@ -152,7 +121,6 @@ def main():
                     {'params':[q for q in parameters if id(q) not in backbone],'lr':lr}]
         else:params=parameters
         optimizer=getattr(torch.optim,recipe['optimizer'])(params,lr=lr,weight_decay=recipe['weight_decay'])
-        rng=np.random.default_rng(a.seed+1000+sidx*1000)
         stage_masks=[];stage_orders=[]
         for epoch in range(budget):
             target.train()
@@ -176,11 +144,11 @@ def main():
                     losses=[F.cross_entropy(t(x),batch.labels) for t,x in zip(teachers,batch.features)]
                     loss=torch.stack(losses).mean();extra_forwards+=len(dims)
                 else:
-                    loss,stats,teacher_logits,out=unified_loss(model,batch,mask,teachers,stage,variant,aux,rng)
+                    loss,stats,teacher_logits,out=backbone_loss(model,batch,mask,teachers,stage,aux)
                     if teacher_logits is not None:extra_forwards+=len(dims)
                 if not torch.isfinite(loss):raise FloatingPointError('Nonfinite training loss')
                 loss.backward()
-                if teacher_logits is not None:
+                if teacher_logits is not None and stage=='A' and epoch<5:
                     with torch.no_grad():
                         probs=teacher_logits.softmax(-1).gather(2,batch.labels[:,None,None].expand(-1,len(dims),1)).squeeze(-1)
                         counts=mask.sum(0);scores=(probs*mask).sum(0)/counts.clamp_min(1);scores[counts==0]=torch.inf
@@ -192,13 +160,12 @@ def main():
                 if not all(torch.isfinite(q.grad).all() for q in parameters if q.grad is not None):
                     raise FloatingPointError('Nonfinite gradient')
                 optimizer.step();updates+=1
-                for k,v in stats.get('racl_coverage',{}).items():coverage[k]+=v
+                for k,v in stats.get('dcr_coverage',{}).items():coverage[k]+=v
                 for k,v in stats.items():
                     if isinstance(v,(int,float)) and not isinstance(v,bool):scalar_terms.setdefault(k,[]).append(v)
                 per_epoch.append(float(loss.detach()))
             if stage=='teachers':
                 # Independent unimodal teachers have no missing-view inference.
-                from icc.full_protocol import binary_metrics
                 teacher_scores=[]
                 teachers.eval()
                 with torch.inference_mode():
@@ -214,12 +181,12 @@ def main():
             if score>best:
                 best=score;stale=0;selection[stage]={'epoch':epoch+1,'score':score,'tie':'earliest','split':'D_val'}
                 if stage=='teachers':torch.save({'teachers':teachers.state_dict()},outdir/f'stage_{stage}.pt')
-                else:save_checkpoint(outdir/f'stage_{stage}.pt',target,method,model_settings,variant,stage)
+                else:save_checkpoint(outdir/f'stage_{stage}.pt',target,stage)
             else:stale+=1
             counts={name:int((masks==np.array(bits)).all(1).sum()) for name,bits in views(modalities).items()}
             record={'stage':stage,'epoch':epoch+1,'mean_loss':float(np.mean(per_epoch)),
                     'updates':updates,'selection_score':score,'validation':validation,'view_counts':counts,
-                    'actual_drop_by_modality':(~masks).mean(0).tolist(),'racl_coverage':coverage,
+                    'actual_drop_by_modality':(~masks).mean(0).tolist(),'dcr_coverage':coverage,
                     'training_terms':{k:float(np.mean(v)) for k,v in scalar_terms.items()},
                     'seconds_since_stage_start':time.perf_counter()-tick}
             epochs.append(record)
@@ -229,7 +196,6 @@ def main():
         if stage=='teachers':teachers.load_state_dict(checkpoint['teachers']);teachers.requires_grad_(False).eval()
         else:
             target.load_state_dict(checkpoint['model'])
-            if 'extra' in checkpoint:target.load_extra_state(checkpoint['extra'])
         np.savez_compressed(outdir/f'mask_schedule_{stage}.npz',masks=np.stack(stage_masks),orders=np.stack(stage_orders))
         costs[stage]={'seconds':time.perf_counter()-tick,'updates':updates,'epochs':len(stage_masks),
                       'extra_forward_calls':extra_forwards,'includes_validation':True,
@@ -238,13 +204,13 @@ def main():
         mask_schedule[stage]=file_sha(outdir/f'mask_schedule_{stage}.npz')
     model.set_stage('eval')
     validation,probabilities=evaluate(model,val,modalities,batch_size,device,p=a.p)
-    save_checkpoint(outdir/'model.pt',model,method,model_settings,variant,getattr(model,'stage','fit'))
+    save_checkpoint(outdir/'model.pt',model,'eval')
     np.savez_compressed(outdir/'D_val_predictions.npz',ids=np.array(val.ids),labels=val.labels.numpy(),
                         groups=np.array(val.groups),**probabilities)
     if implementation_hash()!=start_implementation:
         raise RuntimeError('Implementation changed during training; this attempt cannot be accepted')
     report={'status':'development_validation_selected' if a.seed==20261010 or a.smoke_epochs else 'trained_validation_selected_awaiting_frozen_test',
-        'method':method,'variant':variant,'seed':a.seed,'protocol':'P0' if a.p is None else 'P1','p':a.p,
+        'method':method,'seed':a.seed,'protocol':'P0' if a.p is None else 'P1','p':a.p,
         'config':settings,'recipe':recipe,'model_settings':model_settings,'modalities':modalities,
         'input_dims':dims,'sequence_lengths':lengths,'cache_sha256':file_sha(a.cache),
         'configuration_sha256':file_sha(a.config),'implementation_sha256':start_implementation,
