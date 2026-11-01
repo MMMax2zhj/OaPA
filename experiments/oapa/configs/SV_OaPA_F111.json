@@ -1,0 +1,35 @@
+{
+  "method": "OaPA",
+  "variant": "F111",
+  "model": {
+    "hidden": 128,
+    "heads": 4,
+    "layers": 2,
+    "memory_layers": 3,
+    "encoder_layers": 1,
+    "dropout": 0.1,
+    "prompt_length": 8,
+    "topics": 8
+  },
+  "recipe": {
+    "stages": {
+      "teachers": 10,
+      "A": 20,
+      "B": 10,
+      "J": 10
+    },
+    "batch_size": 16,
+    "optimizer": "AdamW",
+    "weight_decay": 0.01,
+    "backbone_lr_scale": 0.1
+  },
+  "lr": 5e-05,
+  "aux_scale": 1.0,
+  "adaptation_contract": "experiments/oapa/README.md",
+  "mpd_update": "weak_first_then_all",
+  "mpd_warmup_epochs": 5,
+  "text_aux_ce_weight": 0.0,
+  "all_views_aux_ce_weight": 0.0,
+  "audio_expert_kd_weight": 0.0,
+  "view_ce_weights": {}
+}

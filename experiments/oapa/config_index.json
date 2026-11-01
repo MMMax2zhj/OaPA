@@ -1,0 +1,78 @@
+{
+  "SV_OaPA_F111": {
+    "path": "experiments/oapa/configs/SV_OaPA_F111.json",
+    "sha256": "80390c37f2753b941a8ddc3379bcbbe13492f99907546b6fed5883d655b283df"
+  },
+  "TT_OaPA_F111": {
+    "path": "experiments/oapa/configs/TT_OaPA_F111.json",
+    "sha256": "b48b81bd1176e3ac24b8ccc9ca1e652e3f62ae6663c5517fbb5aaa0c5192ead6"
+  },
+  "PF_OaPA_F111": {
+    "path": "experiments/oapa/configs/PF_OaPA_F111.json",
+    "sha256": "d8192fe1ed1d14d378d80618a328201337fe8cfad423adf1090304b3f1ab2aaa"
+  },
+  "SV_OaPA_F000": {
+    "path": "experiments/oapa/configs/SV_OaPA_F000.json",
+    "sha256": "562f92e87315531509c18bf9d1894467befa0cffb06a563e1688492e20c6fb88"
+  },
+  "SV_OaPA_F100": {
+    "path": "experiments/oapa/configs/SV_OaPA_F100.json",
+    "sha256": "3a883a5d72c3b156a302aad5e5b75ce923b4ca0d84edd523fe9c9da7e204f897"
+  },
+  "SV_OaPA_F010": {
+    "path": "experiments/oapa/configs/SV_OaPA_F010.json",
+    "sha256": "2c390ec738fd58684b27f757bb81dae19ed1a8a0a02af9789fb47d4f3386f4bb"
+  },
+  "SV_OaPA_F001": {
+    "path": "experiments/oapa/configs/SV_OaPA_F001.json",
+    "sha256": "093f0075a97137e6e807eba8dded5a4eb800de554eef4458bfcc296f615801c8"
+  },
+  "SV_OaPA_F110": {
+    "path": "experiments/oapa/configs/SV_OaPA_F110.json",
+    "sha256": "2d8cb4600712c8f50084f940e21d43af9f3fb577bdb1360901881ca4e54c12e8"
+  },
+  "SV_OaPA_F101": {
+    "path": "experiments/oapa/configs/SV_OaPA_F101.json",
+    "sha256": "c7ca95d4fa23ba7412670ecc5a5a52abb5cb6149bc3ced3c64d765cacf14e77d"
+  },
+  "SV_OaPA_F011": {
+    "path": "experiments/oapa/configs/SV_OaPA_F011.json",
+    "sha256": "5991c7650a8a3f7a036e79d5b50848b424efca768510b029a97b3528bd48bc29"
+  },
+  "SV_OaPA_S-random": {
+    "path": "experiments/oapa/configs/SV_OaPA_S-random.json",
+    "sha256": "c2e05e33961f9c30e1e48dad92aa2c771ad967fe20c51c72fc0c116d02f96ec3"
+  },
+  "TT_OaPA_F000": {
+    "path": "experiments/oapa/configs/TT_OaPA_F000.json",
+    "sha256": "f093ddfcc01ccf20a794fac39e01edabd35ed7038aa5b4537462ccdfd84dd7aa"
+  },
+  "TT_OaPA_F100": {
+    "path": "experiments/oapa/configs/TT_OaPA_F100.json",
+    "sha256": "ba087a24cd318af3d5d02df165f32e19d98194f7fc4891fc019ddf551fd22ece"
+  },
+  "TT_OaPA_F010": {
+    "path": "experiments/oapa/configs/TT_OaPA_F010.json",
+    "sha256": "92af44817f118ee38a7d4f38934c8fc19bf152d8da255de279f0dee6c07a7642"
+  },
+  "TT_OaPA_F001": {
+    "path": "experiments/oapa/configs/TT_OaPA_F001.json",
+    "sha256": "eb7368f7355a18aa6f4c7b3d7db6a216914d473f2ce60bda4adec08400db4201"
+  },
+  "TT_OaPA_F110": {
+    "path": "experiments/oapa/configs/TT_OaPA_F110.json",
+    "sha256": "ad4cf126b0c79ec40f3c7778d2660bfc668aac91367ceae3fa72b9efc62c9ad8"
+  },
+  "TT_OaPA_F101": {
+    "path": "experiments/oapa/configs/TT_OaPA_F101.json",
+    "sha256": "57c53c7465574157eaa605d105849872e46f788c2dcc711dc4a01efdfb2238f9"
+  },
+  "TT_OaPA_F011": {
+    "path": "experiments/oapa/configs/TT_OaPA_F011.json",
+    "sha256": "fd3be2b687b267b194d54535caab4b0f51f726d523eb07f5d0e1bb1f2e373894"
+  },
+  "TT_OaPA_S-random": {
+    "path": "experiments/oapa/configs/TT_OaPA_S-random.json",
+    "sha256": "fad6b0b922295861bac38de222dfcd82add11d2862c503b2a2449da855a33b89"
+  }
+}

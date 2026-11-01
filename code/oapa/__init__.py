@@ -2,7 +2,7 @@
 
 from .aggregation import OaPA, VPA_FEATURES, VisibilityPredictionAggregator
 from .backbone import BackboneConfig, OaPABackbone, build_oapa_backbone
-from .four_route import FourRouteVPA
+from .pipeline import OaPAVPA
 from .objectives import (
     DiscriminativeContrastiveRegularization,
     ModalityPrioritizedDistillation,
@@ -11,7 +11,7 @@ from .objectives import (
 __all__ = [
     "BackboneConfig",
     "DiscriminativeContrastiveRegularization",
-    "FourRouteVPA",
+    "OaPAVPA",
     "ModalityPrioritizedDistillation",
     "OaPA",
     "OaPABackbone",

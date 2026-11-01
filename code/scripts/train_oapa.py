@@ -1,4 +1,4 @@
-"""Train one OaPA 4R cell; never predict D_test.
+"""Train one OaPA cell; never predict D_test.
 
 The independent evaluator is permitted only after a frozen selection manifest.
 """
@@ -105,7 +105,7 @@ def main():
     settings=json.loads(Path(a.config).read_text(encoding='utf-8'))
     method=settings['method'];variant=settings.get('variant','F111')
     if method!='OaPA':
-        p.error('This trainer supports the OaPA 4R method only')
+        p.error('This trainer supports the OaPA method only')
     if a.resume:a.epoch_checkpoints=True
     if a.save_teacher_epochs:a.epoch_checkpoints=True
     if a.stop_after_epochs and (not a.epoch_checkpoints or a.stop_after_epochs<1):
@@ -139,7 +139,7 @@ def main():
     fit=splits['D_fit'];val=splits['D_val'];split_sizes={k:len(b) for k,b in splits.items()}
     for key in ('text_aux_ce_weight','all_views_aux_ce_weight','audio_expert_kd_weight'):
         if settings.get(key,0)!=0:
-            p.error(f'{key} is not part of the OaPA 4R release')
+            p.error(f'{key} is not part of the OaPA release')
     if not fit.native.all() or not val.native.all():raise ValueError('Full-plan controlled cohort must be native complete')
     if a.fit_limit:
         fit=fit.select(slice(0,a.fit_limit));val=val.select(slice(0,a.fit_limit))

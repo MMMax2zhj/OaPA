@@ -1,11 +1,9 @@
-# OaPA (CoMPA4R)
+# OaPA
 
 OaPA (Observation-anchored Prediction Aggregation) detects fake news under
-missing modalities. **CoMPA4R is the complete code implementation of OaPA**;
-OaPA is the paper-facing method name. This repository contains the complete
-four-route implementation: staged MPD learning, VPC, DCR, singleton experts,
-deployed Stage-J selection, VPA calibration, frozen evaluation, audit, and
-table export.
+missing modalities. This repository contains the complete OaPA implementation:
+staged MPD learning, VPC, DCR, singleton experts, deployed Stage-J selection,
+VPA calibration, frozen evaluation, audit, and table export.
 
 ## Setup
 
@@ -32,37 +30,37 @@ Datasets, feature caches, experts, and trained weights are not included.
 
 The default configs train the final `F111` backbone. Component configs
 `F000`–`F110` and the random-reference `S-random` control are under
-`experiments/four_route/configs/`.
+`experiments/oapa/configs/`.
 
 ```bash
 python code/scripts/train_oapa.py \
   --cache /path/to/FakeSV.pt \
-  --config experiments/four_route/configs/SV_OaPA_F111.json \
-  --output outputs/oapa4r/runs/example \
+  --config experiments/oapa/configs/SV_OaPA_F111.json \
+  --output outputs/oapa/runs/example \
   --seed 20261011 \
   --device cuda \
   --epoch-checkpoints \
   --save-j-epochs
 ```
 
-## Four-Route Pipeline
+## OaPA Pipeline
 
 The full 120-job matrix and the paper-scoped 72-job subset are defined in
-`experiments/four_route/`. The pipeline fits experts only on `D_fit`, selects
+`experiments/oapa/`. The pipeline fits experts only on `D_fit`, selects
 the deployed J checkpoint on `D_val`, calibrates VPA on the configured
 calibration split, freezes all artifacts, and only then evaluates `D_test`.
 
 ```bash
-python code/scripts/oapa4r.py --phase preflight --execute
-python code/scripts/oapa4r.py --phase campaign --execute
+python code/scripts/run_oapa.py --phase preflight --execute
+python code/scripts/run_oapa.py --phase campaign --execute
 ```
 
 For only `MAIN_P0` and `MAIN_P1`:
 
 ```bash
-python code/scripts/oapa4r_main.py --execute
+python code/scripts/run_oapa_paper.py --execute
 ```
 
 All execution phases require `--execute`; omitting it performs a preview.
-See [experiments/four_route/README.md](experiments/four_route/README.md) for
+See [experiments/oapa/README.md](experiments/oapa/README.md) for
 the retained routes and protocol.
