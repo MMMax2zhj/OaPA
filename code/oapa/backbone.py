@@ -74,20 +74,21 @@ class TextImageCompletion(nn.Module):
         prompt_length = cfg.prompt_length
         source = mplmm_source()
 
-        self.generative = nn.Parameter(torch.zeros(2, hidden, prompt_length))
-        self.translate = nn.ModuleList(
-            [source.MLPLayer(hidden, hidden) for _ in range(2)]
-        )
-        self.to_length = nn.ModuleList(
-            [
-                source.MLPLayer(
-                    prompt_length + cfg.sequence_lengths[1 - k],
-                    cfg.sequence_lengths[k],
-                    True,
-                )
-                for k in range(2)
-            ]
-        )
+        if cfg.use_completion:
+            self.generative = nn.Parameter(torch.zeros(2, hidden, prompt_length))
+            self.translate = nn.ModuleList(
+                [source.MLPLayer(hidden, hidden) for _ in range(2)]
+            )
+            self.to_length = nn.ModuleList(
+                [
+                    source.MLPLayer(
+                        prompt_length + cfg.sequence_lengths[1 - k],
+                        cfg.sequence_lengths[k],
+                        True,
+                    )
+                    for k in range(2)
+                ]
+            )
         self.signal_missing = nn.ParameterList(
             [nn.Parameter(torch.zeros(length, hidden)) for length in cfg.sequence_lengths]
         )
@@ -100,7 +101,7 @@ class TextImageCompletion(nn.Module):
         self.type_projection = nn.ParameterList(
             [nn.Parameter(torch.randn(length, hidden) * 0.02) for length in cfg.sequence_lengths]
         )
-        if cfg.conditional:
+        if cfg.conditional and cfg.use_completion:
             self.topic_prototypes = nn.Parameter(
                 torch.randn(cfg.topics, hidden) * 0.02
             )
@@ -113,11 +114,31 @@ class TextImageCompletion(nn.Module):
                 hidden, cfg.heads, cfg.dropout, batch_first=True
             )
             self.condition_norm = nn.LayerNorm(hidden)
-        self.decoders = nn.ModuleList(
-            [nn.Linear(hidden, dim) for dim in cfg.input_dims]
+        self.decoders = (
+            nn.ModuleList([nn.Linear(hidden, dim) for dim in cfg.input_dims])
+            if cfg.use_completion
+            else nn.ModuleList()
         )
 
+    def missing_prompts(self, mask):
+        signals = [
+            torch.where(
+                mask[:, k, None, None],
+                self.signal_visible[k][None],
+                self.signal_missing[k][None],
+            )
+            for k in range(mask.shape[1])
+        ]
+        projection = sum(
+            signal.transpose(1, 2) @ parameter
+            for signal, parameter in zip(signals, self.type_projection)
+        )
+        return self.missing_type[None] @ projection[:, None]
+
     def prepare(self, sequences, mask):
+        prompts = self.missing_prompts(mask)
+        if not self.cfg.use_completion:
+            return sequences, prompts
         values, signals = [], []
         for k, x in enumerate(sequences):
             other = sequences[1 - k].transpose(1, 2)
@@ -135,12 +156,6 @@ class TextImageCompletion(nn.Module):
                 torch.where(mask[:, k, None, None], x, generated) + signal
             )
             signals.append(signal)
-
-        projection = sum(
-            signal.transpose(1, 2) @ parameter
-            for signal, parameter in zip(signals, self.type_projection)
-        )
-        prompts = self.missing_type[None] @ projection[:, None]
 
         if self.cfg.conditional:
             z = torch.stack(pooled(sequences), 1)
@@ -184,9 +199,10 @@ class TextImageCompletion(nn.Module):
 class OaPABackbone(nn.Module):
     """Backbone producing a fused prediction and observational anchors."""
 
-    def __init__(self, cfg):
+    def __init__(self, cfg, variant="F111"):
         super().__init__()
         self.cfg = cfg
+        self.variant = variant
         self.modalities = len(cfg.input_dims)
         self.projectors = nn.ModuleList(
             [SequenceEncoder(dim, cfg) for dim in cfg.input_dims]
@@ -313,6 +329,7 @@ class OaPABackbone(nn.Module):
         payload = {
             "family": "oapa-backbone",
             "config": asdict(self.cfg),
+            "variant": self.variant,
             "stage": self.stage,
             "model": self.state_dict(),
         }
@@ -325,17 +342,24 @@ class OaPABackbone(nn.Module):
         payload = torch.load(path, map_location=device, weights_only=True)
         if payload.get("family") != "oapa-backbone":
             raise ValueError("Expected an OaPA backbone checkpoint")
-        model = cls(BackboneConfig(**payload["config"])).to(device)
+        model = cls(
+            BackboneConfig(**payload["config"]),
+            variant=payload.get("variant", "F111"),
+        ).to(device)
         model.load_state_dict(payload["model"])
         model.set_stage(payload["stage"])
         model.eval()
         return model
 
 
-def build_oapa_backbone(input_dims, sequence_lengths, model_settings=None):
+def build_oapa_backbone(
+    input_dims, sequence_lengths, model_settings=None, variant="F111"
+):
     settings = dict(model_settings or {})
+    if variant.startswith("F") and len(variant) == 4:
+        settings["use_completion"] = variant[2] == "1"
     settings.update(
         input_dims=tuple(input_dims),
         sequence_lengths=tuple(sequence_lengths),
     )
-    return OaPABackbone(BackboneConfig(**settings))
+    return OaPABackbone(BackboneConfig(**settings), variant=variant)

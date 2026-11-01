@@ -1,0 +1,188 @@
+{
+  "p0_sv_tt": {
+    "datasets": [
+      "SV",
+      "TT"
+    ],
+    "rows_per_dataset": [
+      "OaPA"
+    ],
+    "columns": [
+      "T",
+      "V",
+      "A",
+      "TV",
+      "TA",
+      "VA",
+      "TVA"
+    ],
+    "original_paper_rows_preserved_in_manuscript": [
+      "UMGTN_Src_adapt",
+      "CLKD_IMRD_adapt",
+      "ShaSpec_adapt",
+      "MPLMM_adapt",
+      "MyGO_adapt",
+      "OaPA"
+    ],
+    "export_scope": "Only newly evaluated OaPA rows/cells; existing baseline rows in actual manuscript are untouched"
+  },
+  "p0_pf": {
+    "datasets": [
+      "PF"
+    ],
+    "rows": [
+      "OaPA"
+    ],
+    "columns": [
+      "T",
+      "I",
+      "TI"
+    ],
+    "original_paper_rows_preserved_in_manuscript": [
+      "UMGTN_Src_adapt",
+      "CLKD_IMRD_adapt",
+      "ShaSpec_adapt",
+      "MPLMM_adapt",
+      "MyGO_adapt",
+      "OaPA"
+    ],
+    "export_scope": "Only newly evaluated OaPA rows/cells; existing baseline rows in actual manuscript are untouched"
+  },
+  "p1": {
+    "datasets": [
+      "SV",
+      "TT",
+      "PF"
+    ],
+    "rows_per_dataset": [
+      "OaPA"
+    ],
+    "columns": [
+      "0.1",
+      "0.2",
+      "0.3",
+      "0.4",
+      "0.5",
+      "0.6",
+      "0.7"
+    ],
+    "original_paper_rows_preserved_in_manuscript": [
+      "UMGTN_Src_adapt",
+      "CLKD_IMRD_adapt",
+      "ShaSpec_adapt",
+      "MPLMM_adapt",
+      "MyGO_adapt",
+      "OaPA"
+    ],
+    "export_scope": "Only newly evaluated OaPA rows/cells; existing baseline rows in actual manuscript are untouched"
+  },
+  "components": {
+    "rows": [
+      "F000",
+      "F100",
+      "F010",
+      "F001",
+      "F110",
+      "F101",
+      "F011",
+      "F111"
+    ],
+    "columns": [
+      "SV/VA",
+      "TT/TA",
+      "SV/F_all",
+      "TT/F_all"
+    ],
+    "full_row_reuse": "MAIN_P0 OaPA F111",
+    "all_view_protocol": {
+      "tables": [
+        "components",
+        "aggregation"
+      ],
+      "datasets": [
+        "SV",
+        "TT"
+      ],
+      "views": [
+        "T",
+        "V",
+        "A",
+        "TV",
+        "TA",
+        "VA",
+        "TVA"
+      ],
+      "metric": "Within each seed, arithmetic mean of seven per-view Macro-F1 scores; then average three seeds; percent",
+      "not_equivalent_to": "TVA-only, pooled predictions, or P1 mixed-mask score",
+      "extra_training_jobs": 0,
+      "extra_gate_fits": 0,
+      "aggregation_expert_control": "All seven rows share identical fixed singleton A/V overrides; Backbone disables neural aggregation only; OaPA F_all must match MAIN_P0 F_all"
+    }
+  },
+  "aggregation": {
+    "rows": [
+      "Backbone",
+      "Fixed alpha=.25",
+      "Fixed alpha=.5",
+      "Mask only",
+      "Confidence only",
+      "Agreement only",
+      "OaPA"
+    ],
+    "columns": [
+      "SV/TV",
+      "SV/TA",
+      "SV/F_all",
+      "TT/TV",
+      "TT/TA",
+      "TT/F_all"
+    ],
+    "all_view_protocol": {
+      "tables": [
+        "components",
+        "aggregation"
+      ],
+      "datasets": [
+        "SV",
+        "TT"
+      ],
+      "views": [
+        "T",
+        "V",
+        "A",
+        "TV",
+        "TA",
+        "VA",
+        "TVA"
+      ],
+      "metric": "Within each seed, arithmetic mean of seven per-view Macro-F1 scores; then average three seeds; percent",
+      "not_equivalent_to": "TVA-only, pooled predictions, or P1 mixed-mask score",
+      "extra_training_jobs": 0,
+      "extra_gate_fits": 0,
+      "aggregation_expert_control": "All seven rows share identical fixed singleton A/V overrides; Backbone disables neural aggregation only; OaPA F_all must match MAIN_P0 F_all"
+    }
+  },
+  "reference_selection": {
+    "datasets": [
+      "SV",
+      "TT"
+    ],
+    "rows": [
+      "S-random",
+      "Semantic (DCR)"
+    ],
+    "columns": [
+      "SV",
+      "TT"
+    ],
+    "metric": "P0 deployed F_all (%)",
+    "aggregation": "equal legal-view Macro-F1 within seed, then mean of three seeds",
+    "export": "tables/reference_selection.tex",
+    "label": "tab:reference_selection",
+    "presentation": "table replacing the original figure; same comparisons and data",
+    "DCR_usage": "paired B/J attempted/used counts in audit and verified caption/text; no invented historical counts"
+  },
+  "writing_policy": "Export six tables with explicitly requested F_all column extensions under new campaign/export only; never overwrite current paper automatically"
+}
+
+

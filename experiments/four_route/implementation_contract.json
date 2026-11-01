@@ -1,0 +1,40 @@
+{
+  "status": "OaPA_ONLY_M0_PENDING",
+  "requested_entrypoint": "code/scripts/oapa4r.py",
+  "required_phases": [
+    "preflight",
+    "fit-experts",
+    "select",
+    "calibrate",
+    "freeze",
+    "evaluate",
+    "aggregate",
+    "verify",
+    "export"
+  ],
+  "required_checks": [
+    "three_dataset_shapes_and_splits",
+    "feature_dimension_provenance",
+    "singleton_route_invariance",
+    "P1_mixed_population_metric",
+    "P1_gate_matched_masks",
+    "PF_no_audio",
+    "eight_component_switches",
+    "restricted_gate_feature_masks",
+    "random_DCR_coverage",
+    "fresh_run_only",
+    "checkpoint_resume_parity",
+    "frozen_test_guard",
+    "exact_table_schema"
+  ],
+  "readiness_file": "outputs/oapa4r/readiness.json",
+  "readiness_fields": {
+    "ready": true,
+    "protocol_sha256": "SHA256 of this package protocol.json",
+    "source_hashes": "map of complete frozen runtime source file paths to SHA256",
+    "checks": "all required checks true"
+  },
+  "note": "The entrypoint and phase interfaces are implemented. M0 checks use fixtures and shortened runs; formal completeness of the 120-job matrix is checked before frozen test evaluation and export."
+}
+
+

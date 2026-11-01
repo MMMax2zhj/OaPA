@@ -50,16 +50,19 @@ class ModalityPrioritizedDistillation(nn.Module):
 class DiscriminativeContrastiveRegularization(nn.Module):
     """Hard-reference contrast for class-separable completed representations."""
 
-    def __init__(self, negative_k=1, temperature=1.0):
+    def __init__(self, negative_k=1, temperature=1.0, reference="semantic"):
         super().__init__()
         if not isinstance(negative_k, int) or isinstance(negative_k, bool) or negative_k < 1:
             raise ValueError("negative_k must be a positive integer")
         if temperature <= 0:
             raise ValueError("temperature must be positive")
+        if reference not in ("semantic", "random"):
+            raise ValueError("reference must be semantic or random")
         self.negative_k = negative_k
         self.temperature = temperature
+        self.reference = reference
 
-    def forward(self, representation, labels, ids, groups, split="D_fit"):
+    def forward(self, representation, labels, ids, groups, split="D_fit", rng=None):
         if split != "D_fit":
             raise ValueError("DCR is restricted to the D_fit split")
         n = len(representation)
@@ -90,14 +93,28 @@ class DiscriminativeContrastiveRegularization(nn.Module):
 
         terms, pairs = [], []
         for anchor in valid.nonzero(as_tuple=True)[0].tolist():
-            positive = similarity[anchor].detach().masked_fill(
-                ~positive_mask[anchor], -torch.inf
-            ).argmax()
             candidates = negative_mask[anchor].nonzero(as_tuple=True)[0]
-            order = torch.argsort(
-                similarity[anchor, candidates].detach(), descending=True, stable=True
-            )
-            negatives = candidates[order[: self.negative_k]]
+            positives = positive_mask[anchor].nonzero(as_tuple=True)[0]
+            if self.reference == "random":
+                if rng is None:
+                    raise ValueError("Random-reference DCR requires an RNG")
+                positive = positives[int(rng.integers(len(positives)))]
+                chosen = rng.choice(
+                    len(candidates),
+                    size=min(self.negative_k, len(candidates)),
+                    replace=False,
+                )
+                negatives = candidates[torch.as_tensor(chosen, device=candidates.device)]
+            else:
+                positive = similarity[anchor].detach().masked_fill(
+                    ~positive_mask[anchor], -torch.inf
+                ).argmax()
+                order = torch.argsort(
+                    similarity[anchor, candidates].detach(),
+                    descending=True,
+                    stable=True,
+                )
+                negatives = candidates[order[: self.negative_k]]
             logits = torch.cat(
                 [
                     similarity[anchor, positive].reshape(1),

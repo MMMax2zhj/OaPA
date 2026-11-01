@@ -5,14 +5,31 @@ from torch import nn
 import torch.nn.functional as F
 
 
+VPA_FEATURES = {
+    "full": (0, 1, 2, 3, 4),
+    "mask": (3,),
+    "confidence": (0, 2),
+    "agreement": (1,),
+}
+
+
 class VisibilityPredictionAggregator(nn.Module):
     """Aggregate the fused prediction and visible observational anchors."""
 
-    def __init__(self, modalities):
+    def __init__(self, modalities, kind="full"):
         super().__init__()
+        if kind not in VPA_FEATURES:
+            raise ValueError(f"Unknown VPA feature set: {kind}")
         self.modalities = modalities
+        self.kind = kind
         self.scorer = nn.Linear(5, 1)
         self.modality_bias = nn.Parameter(torch.zeros(modalities))
+        self.register_buffer(
+            "feature_selection",
+            torch.tensor(
+                [float(i in VPA_FEATURES[kind]) for i in range(5)]
+            ),
+        )
         nn.init.zeros_(self.scorer.weight)
         nn.init.constant_(self.scorer.bias, -3.0)
 
@@ -38,7 +55,7 @@ class VisibilityPredictionAggregator(nn.Module):
 
         # Center branch biases for identifiability relative to the fusion score.
         bias = self.modality_bias - self.modality_bias.mean()
-        scores = self.scorer(descriptors).squeeze(-1) + bias[None]
+        scores = self.scorer(descriptors * self.feature_selection).squeeze(-1) + bias[None]
         scores = scores.masked_fill(~mask, torch.finfo(scores.dtype).min)
         weights = F.softmax(
             torch.cat((torch.zeros_like(fused[:, None]), scores), 1), 1

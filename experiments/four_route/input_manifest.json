@@ -1,0 +1,10 @@
+{
+  "files": {
+    "data/cache/sequence_protocol_v2/FakeSV.pt": "d80761d69581bbc54d9099548707a6fc985da6d3f8bc24f5f85474e53a465f20",
+    "data/cache/sequence_protocol_v2/FakeTT.pt": "8d23ccdfac42c838eec60cdf56ffcfb810969dfc2c6dda4377a9b6c988eef8f5",
+    "data/cache/full_protocol_v1/PolitiFact.pt": "6f60b6c51a5a9824c426b7da7f3c6b3ab4ec901db9266cd2cbdfcf44b15c8ab5"
+  },
+  "source": "unchanged local audited caches",
+  "new_feature_extraction": false
+}
+

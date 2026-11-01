@@ -1,0 +1,209 @@
+{
+  "status": "IMPLEMENTED_AWAITING_M0",
+  "date": "2026-10-31",
+  "scope": "Four-route OaPA ONLY: no external baseline training or evaluation; retain datasets, protocols, components, aggregation, and reference controls",
+  "all_view_extension": {
+    "tables": [
+      "components",
+      "aggregation"
+    ],
+    "datasets": [
+      "SV",
+      "TT"
+    ],
+    "views": [
+      "T",
+      "V",
+      "A",
+      "TV",
+      "TA",
+      "VA",
+      "TVA"
+    ],
+    "metric": "Within each seed, arithmetic mean of seven per-view Macro-F1 scores; then average three seeds; percent",
+    "not_equivalent_to": "TVA-only, pooled predictions, or P1 mixed-mask score",
+    "extra_training_jobs": 0,
+    "extra_gate_fits": 0,
+    "aggregation_expert_control": "All seven rows share identical fixed singleton A/V overrides; Backbone disables neural aggregation only; OaPA F_all must match MAIN_P0 F_all"
+  },
+  "datasets": {
+    "SV": {
+      "name": "FakeSV",
+      "cache": "data/cache/sequence_protocol_v2/FakeSV.pt",
+      "modalities": [
+        "T",
+        "V",
+        "A"
+      ],
+      "dims": [
+        384,
+        512,
+        768
+      ],
+      "lengths": [
+        32,
+        16,
+        1
+      ],
+      "paper_n": 3063,
+      "fit": 2036,
+      "calibration": "D_gate",
+      "calibration_n": 341,
+      "val": 338,
+      "test": 348,
+      "unused_probe": 344,
+      "expert_views": [
+        "A",
+        "V"
+      ]
+    },
+    "TT": {
+      "name": "FakeTT",
+      "cache": "data/cache/sequence_protocol_v2/FakeTT.pt",
+      "modalities": [
+        "T",
+        "V",
+        "A"
+      ],
+      "dims": [
+        384,
+        512,
+        768
+      ],
+      "lengths": [
+        32,
+        16,
+        1
+      ],
+      "paper_n": 1703,
+      "fit": 1139,
+      "calibration": "D_gate",
+      "calibration_n": 195,
+      "val": 191,
+      "test": 178,
+      "unused_probe": 193,
+      "expert_views": [
+        "A",
+        "V"
+      ]
+    },
+    "PF": {
+      "name": "PolitiFact",
+      "cache": "data/cache/full_protocol_v1/PolitiFact.pt",
+      "modalities": [
+        "T",
+        "I"
+      ],
+      "dims": [
+        384,
+        768
+      ],
+      "lengths": [
+        32,
+        49
+      ],
+      "paper_n": 404,
+      "fit": 282,
+      "calibration": "D_val",
+      "calibration_n": 61,
+      "val": 61,
+      "test": 61,
+      "unused_probe": 0,
+      "expert_views": [
+        "I"
+      ]
+    }
+  },
+  "training_seeds": [
+    20261011,
+    20261012,
+    20261013
+  ],
+  "development_smoke_seed": 20261010,
+  "dropout_rates": [
+    0.1,
+    0.2,
+    0.3,
+    0.4,
+    0.5,
+    0.6,
+    0.7
+  ],
+  "test_and_validation_mask_repeats": 10,
+  "formal_training_jobs": 120,
+  "training_block_counts": {
+    "MAIN_P0": 9,
+    "MAIN_P1": 63,
+    "COMPONENTS": 42,
+    "SEMANTIC": 6
+  },
+  "distinct_training_configs": 19,
+  "smoke_training_jobs": 22,
+  "expert_models": 5,
+  "full_vpa_fits": 120,
+  "restricted_vpa_fits": 18,
+  "P0_selection": "Final J, earliest max equal-view Macro-F1 after singleton expert replacement, before VPA",
+  "P1_selection": "Final J, earliest max mean Macro-F1 of ten fixed D_val mixed-mask populations AFTER expert replacement, before VPA; never weighted sum of per-view F1",
+  "training_stage_selection": "Teachers/A/B keep original selection; only final J uses deployed expert routing",
+  "P0_gate_calibration": "All legal calibration views, class-balanced BCE + .2 visible-branch-weight penalty",
+  "P1_gate_calibration": "Ten fixed calibration masks at same p; original matched-p gate fitter generalized to reg.2",
+  "gate": "AdamW lr.03 wd.02 200steps seed31337; missing branch weight zero",
+  "expert_A": "D_fit StandardScaler + LDA(lsqr,shrinkage=auto); SV/TT only",
+  "expert_visual": "D_fit sequence mean -> StandardScaler + SVC(C1,RBF,gamma=scale,probability=True,random_state=20261030)",
+  "expert_scope": "A-only or V/I-only masks only; all joint views and T-only retain frozen backbone+VPA",
+  "expert_sharing": "One new bank per dataset, shared across network seeds and p; no old weights reused",
+  "checkpoint_retention": "User override 2026-10-31: keep all J epochs temporarily for deployed selection, then retain selected model, gates, raw model, three-seed predictions and logs; prune only this campaign run ephemeral J/stage/resume checkpoints after successful selection/calibration",
+  "D_probe": "Unused by this campaign; excluded from paper sample totals, fitting and selection",
+  "PF_MyGO": "N/A exactly as current paper; no invented no-event result",
+  "PF_calibration": "D_val61 reused for selection/calibration per original protocol, not an independent set",
+  "test_policy": "Global implementation/config/checkpoint/expert/gate/mask freeze BEFORE any new D_test evaluation; historical exposure remains disclosed",
+  "threshold": "p_fake>0.5; exact ties choose class0",
+  "default_execution": "Disabled; training queue defaults to preview and requires completed M0 readiness",
+  "implementation_status": "IMPLEMENTED_REQUIRES_M0_ACCEPTANCE",
+  "execution_scopes": {
+    "complete": {
+      "formal_jobs": 120,
+      "blocks": {
+        "MAIN_P0": 9,
+        "MAIN_P1": 63,
+        "COMPONENTS": 42,
+        "SEMANTIC": 6
+      }
+    },
+    "paper": {
+      "formal_jobs": 72,
+      "blocks": {
+        "MAIN_P0": 9,
+        "MAIN_P1": 63
+      }
+    }
+  },
+  "hpo_selection_source": {
+    "path": "outputs/server_results_20261009/extracted/full_20261008/campaign_v2/hpo_selection.json",
+    "sha256": "97e74b59d05ba31e6320bf00df552dc531a0fe78860fca7c4d1d779166fde654"
+  },
+  "paper_outputs": [
+    "tables/p0_sv_tt.tex",
+    "tables/p0_pf.tex",
+    "tables/p1.tex",
+    "tables/components.tex",
+    "tables/aggregation.tex",
+    "tables/reference_selection.tex"
+  ],
+  "reference_presentation": "Two rows S-random / Semantic (DCR), two result columns SV / TT; three-seed mean P0 F_all (%); no figure export",
+  "input_dimension_note": "Use unchanged cache and current paper shapes. Earlier user wording 786 dimensions conflicts with current manuscript 384/512/768; resolve provenance in M0 before execution, never silently reshape or substitute features.",
+  "paper_source_sha256": {
+    "main.tex": "1182e10638b773defb9b65a47918242a4f08e6d82464e5d536fcef0ace059b76",
+    "sections/03_method.tex": "b0785c9d9496abaa643524eeda168b5f060e0b8073cc8f2380426c605cd9dba6",
+    "sections/04_experiments.tex": "d9b7168b4c3983ea861f428ed5507afb2e68772dbb892eadd2c2dbe505ced768",
+    "tables/p0_sv_tt.tex": "a1029730250b92602caca0bcd919fd4cc0fafca6a472745ab3a0f481fe697854",
+    "tables/p0_pf.tex": "745d93d0cf3c6d6a0f718ba012b1a8d9cdaad7989b97a4d5038591a74bbaf5b1",
+    "tables/p1.tex": "af255944397b7c6e4418e3f555d9ad7ae7c649152a53b6bb476085b002cfd05e",
+    "tables/components.tex": "1e2d92e6ee3251222f0a10befa4792073fc0859b3443ff68cc7e94b8d89dfee1",
+    "tables/aggregation.tex": "c458fc6c8d5ec1e4f4350ea218bc1bd55db84cca7023bab3dc516d19515b604a",
+    "figures/reference_selection.png": "32ba9b627477d391292a7877d84f95c1781395992a94ca2f950fb5943103576d"
+  },
+  "external_baselines": "Existing paper values left unchanged; no fresh inference or pooled cross-campaign statistics"
+}
+
+

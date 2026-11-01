@@ -23,6 +23,7 @@ class BackboneConfig:
     prompt_length: int = 8
     topics: int = 8
     conditional: bool = True
+    use_completion: bool = True
 
     def __post_init__(self):
         if len(self.input_dims) not in (2, 3) or len(self.input_dims) != len(self.sequence_lengths):

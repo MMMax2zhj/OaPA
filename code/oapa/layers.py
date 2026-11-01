@@ -100,6 +100,13 @@ class VideoFusion(nn.Module):
         prompt = torch.matmul(self.core.missing_type_prompt[None], self.core.mp[modes, None])
         return (completed[0], completed[2], completed[1]), prompt
 
+    def missing_prompts(self, mask):
+        modes = mplmm_missing_modes(mask)
+        self.core.get_proj_matrix()
+        return torch.matmul(
+            self.core.missing_type_prompt[None], self.core.mp[modes, None]
+        )
+
     def fuse(self, sequences, prompts=None):
         # Exact upstream crossmodal -> memory -> residual MLP path; public T,V,A.
         c = self.core
@@ -131,8 +138,12 @@ class VisibilityConditionedCompletion(nn.Module):
         super().__init__()
         self.cfg = cfg
         self.fusion = VideoFusion(cfg, prompts=True)
-        self.decoders = nn.ModuleList([nn.Linear(cfg.hidden, d) for d in cfg.input_dims])
-        if cfg.conditional:
+        self.decoders = (
+            nn.ModuleList([nn.Linear(cfg.hidden, dim) for dim in cfg.input_dims])
+            if cfg.use_completion
+            else nn.ModuleList()
+        )
+        if cfg.conditional and cfg.use_completion:
             self.topic_prototypes = nn.Parameter(torch.randn(cfg.topics, cfg.hidden)*.02)
             self.topic_prompts = nn.Parameter(torch.randn(cfg.topics, cfg.hidden)*.02)
             self.queries = nn.ParameterList([nn.Parameter(torch.randn(n, cfg.hidden)*.02) for n in cfg.sequence_lengths])
@@ -141,6 +152,8 @@ class VisibilityConditionedCompletion(nn.Module):
             self.condition_norm = nn.LayerNorm(cfg.hidden)
 
     def prepare(self, sequences, mask):
+        if not self.cfg.use_completion:
+            return sequences, self.fusion.missing_prompts(mask)
         generated, prompts = self.fusion.complete(sequences, mask)
         if self.cfg.conditional:
             z = torch.stack(pooled(sequences), 1)
