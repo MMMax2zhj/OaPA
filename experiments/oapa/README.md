@@ -1,26 +1,42 @@
-# OaPA Experiment Protocol
+# OaPA Paper Experiments
 
-This directory freezes the complete OaPA implementation:
+This directory contains the experiment specifications for the OaPA paper:
+**How Much to Trust Completion? Observation-Anchored Prediction Aggregation
+for Incomplete Multimodal Fake News Detection**.
 
-- staged MPD backbone training;
-- VPC and DCR component switches;
-- D_fit-only audio LDA and visual/image RBF experts;
-- deployed Stage-J checkpoint selection before VPA;
-- visibility-constrained VPA calibration;
-- frozen test evaluation, independent audit, and table export.
+The paper scope covers:
 
-`protocol.json` defines the full 120-job matrix and the 72-job paper scope.
-`training_jobs.json` enumerates the full matrix. `smoke_jobs.json` contains the
-M0-only shortened runs. Feature caches are not included.
+- fixed-view detection (P0);
+- matched modality missingness from `0.1` through `0.7` (P1);
+- MPD, VPC, and DCR component ablations;
+- VPA prediction-aggregation controls;
+- semantic versus random DCR reference selection.
 
-The complete pipeline is:
+## Contents
 
-```bash
-python code/scripts/oapa_env.py --output outputs/oapa/fresh_agent_environment_witness.json
-python code/scripts/run_oapa.py --phase preflight --execute
-python code/scripts/run_oapa.py --phase campaign --execute
+```text
+configs/                  Final and ablation configurations
+protocol.json             Dataset splits and P0/P1 protocols
+paper_output_schema.json  Paper table schema
+input_manifest.json       Feature-cache paths and hashes
 ```
 
-`code/scripts/run_oapa_paper.py` runs the paper-scoped `MAIN_P0` and `MAIN_P1`
-blocks after M0 acceptance. See `protocol.json` for evidence paths,
-calibration splits, checkpoint selection rules, and export schemas.
+The three bits in `Fxyz` correspond to MPD, VPC, and DCR in that order.
+`F111` enables all three components:
+
+```text
+F000  none
+F100  MPD
+F010  VPC
+F001  DCR
+F110  MPD + VPC
+F101  MPD + DCR
+F011  VPC + DCR
+F111  MPD + VPC + DCR
+```
+
+`S-random` replaces semantic DCR references with random references for the
+paper's reference-selection comparison.
+
+Training is started with `code/scripts/train_oapa.py`. Dataset-specific
+configurations are in `configs/`.
