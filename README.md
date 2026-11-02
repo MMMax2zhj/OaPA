@@ -4,6 +4,8 @@ Reference implementation of **How Much to Trust Completion?
 Observation-Anchored Prediction Aggregation for Incomplete Multimodal Fake
 News Detection**.
 
+CoMPA is the former name of OaPA.
+
 OaPA detects fake news when one or more modalities are missing. It combines
 source-tagged visibility-conditioned prompt completion (VPC),
 modality-prioritized distillation (MPD), discriminative contrastive
