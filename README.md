@@ -33,14 +33,11 @@ image features. Datasets, feature caches, and trained weights are not included.
 
 ## Train
 
-Run one complete configured main-model cell:
+Train and test one configured main-model cell:
 
 ```bash
-python code/scripts/run_oapa.py \
-  --phase train-cell \
-  --run-id MAIN_P0_SV_OaPA_F111_s20261011 \
-  --device cuda \
-  --execute
+python code/scripts/run_oapa.py --phase train-cell --run-id MAIN_P0_SV_OaPA_F111_s20261011 --device cuda --execute
+python code/scripts/run_oapa.py --phase test-cell --run-id MAIN_P0_SV_OaPA_F111_s20261011 --device cuda --execute
 ```
 
 The run configuration, data split, seed, and output location are defined in
@@ -48,8 +45,8 @@ The run configuration, data split, seed, and output location are defined in
 `experiments/oapa/configs/`. Each invocation trains only the selected run.
 
 Outputs are written under `outputs/oapa/`. The command trains the selected
-backbone, prepares its paper-model checkpoints and VPA artifacts, and does not
-evaluate `D_test`.
+backbone and prepares its paper-model checkpoints and VPA artifacts. The test
+command evaluates only `D_test` for that run and writes `test_metrics.json`.
 
 ## License
 

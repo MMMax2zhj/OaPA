@@ -48,6 +48,11 @@ class OaPAExperimentTests(unittest.TestCase):
         select.assert_called_once_with(job)
         calibrate.assert_called_once_with(job)
 
+    def test_test_cell_requires_a_known_run(self):
+        import run_oapa as core
+        with self.assertRaisesRegex(ValueError,'Unknown or duplicate run id'):
+            core.test_cell('not-a-run')
+
     def test_protocol_manifest_is_complete_and_hash_locked(self):
         package=ROOT/'experiments/oapa'
         protocol=json.loads((package/'protocol.json').read_text())

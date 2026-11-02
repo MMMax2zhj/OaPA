@@ -210,6 +210,56 @@ def train_cell(run_id):
     print(json.dumps({'trained':job['id'],'run_dir':job['run_dir'],'D_test':'not_evaluated'}),flush=True)
 
 
+def test_cell(run_id):
+    matches=[job for job in JOBS if job['id']==run_id]
+    if len(matches)!=1:
+        raise ValueError('Unknown or duplicate run id: '+run_id)
+    job=matches[0]
+    if job['method']!='OaPA':
+        raise ValueError('test-cell supports the OaPA model only')
+    folder=ROOT/job['run_dir'];metrics_path=folder/'test_metrics.json';manifest_path=folder/'test_manifest.json'
+    predictions_path=folder/'test_predictions.npz'
+    if metrics_path.exists():
+        existing=read(metrics_path)
+        if existing.get('manifest_sha256')!=file_sha(manifest_path):
+            raise RuntimeError('Test artifacts belong to another frozen cell state')
+        verify_hashes(read(manifest_path)['files'])
+        verify_hashes(existing['prediction_files'])
+        return
+    report=read(folder/'run.json')
+    selected=selected_path(folder);selected_meta=folder/'selected_checkpoint.json'
+    gate_pt=folder/'gate_full.pt';gate_json=folder/'gate_full.json'
+    if not gate_pt.is_file() or not gate_json.is_file():
+        raise FileNotFoundError('Missing VPA full-gate artifacts')
+    bank=experts(job['condition']);expert_manifest=OUT/'experts'/job['condition']/'manifest.json'
+    expert_files=list(read(expert_manifest)['models'].values())
+    inputs=[PACKAGE/'protocol.json',ROOT/DATA[job['condition']]['cache'],folder/'run.json',folder/'model.pt',
+            selected_meta,selected,gate_pt,gate_json,expert_manifest]+[ROOT/p for p in expert_files]
+    write_json(manifest_path,{'run_id':job['id'],'selection_split':'D_val','test_split':'D_test',
+                              'files':fingerprint(inputs),'time_utc':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime())})
+    splits,dims,lengths,modalities,_=data(job['condition']);batch=splits['D_test']
+    model=restore(selected,report,DEVICE);values=extract(model,batch,modalities,DEVICE);names=list(values)
+    gate=load_gate(folder,'full',len(modalities))
+    table=route(neural_table(values,gate),names,batch,modalities,bank)
+    result=score(table,batch,modalities,job['p'])
+    extra={}
+    if job['p'] is not None:
+        chosen,masks=chosen_masks(batch,modalities,job['p']);extra.update(chosen=chosen,masks=masks)
+    temporary=predictions_path.with_suffix('.tmp.npz')
+    with temporary.open('wb') as stream:
+        np.savez_compressed(stream,ids=np.asarray(batch.ids),groups=np.asarray(batch.groups),
+                            events=np.asarray(batch.events),labels=batch.labels.numpy(),
+                            views=np.asarray(names),probabilities=table,**extra)
+    temporary.replace(predictions_path)
+    write_json(metrics_path,{'run_id':job['id'],'condition':job['condition'],'method':job['method'],
+                             'variant':job['variant'],'seed':job['seed'],'p':job['p'],'result':result,
+                             'manifest_sha256':file_sha(manifest_path),
+                             'prediction_files':fingerprint([predictions_path]),'D_test':'evaluated'})
+    del model,values
+    if DEVICE.startswith('cuda'):torch.cuda.empty_cache()
+    print(json.dumps({'tested':job['id'],'metrics':rel(metrics_path)},flush=True))
+
+
 def freeze():
     inputs=[PACKAGE/'protocol.json',PACKAGE/'training_jobs.json',PACKAGE/'paper_output_schema.json']+runtime_sources()
     for d in DATA.values():inputs.append(ROOT/d['cache'])
@@ -528,7 +578,7 @@ def export():
 def main():
     global DEVICE
     parser=argparse.ArgumentParser();parser.add_argument('--phase',required=True,
-        choices=['train-cell','fit-experts','select','calibrate','freeze','evaluate','verify','aggregate','export','preflight','campaign'])
+        choices=['train-cell','test-cell','fit-experts','select','calibrate','freeze','evaluate','verify','aggregate','export','preflight','campaign'])
     parser.add_argument('--run-id');parser.add_argument('--device',default='cuda');parser.add_argument('--execute',action='store_true')
     args=parser.parse_args();DEVICE=args.device
     torch.set_num_threads(4);torch.backends.cudnn.benchmark=False;torch.backends.cudnn.deterministic=True
@@ -538,6 +588,9 @@ def main():
     if args.phase=='train-cell':
         if not args.run_id:parser.error('train-cell requires --run-id')
         train_cell(args.run_id);return
+    if args.phase=='test-cell':
+        if not args.run_id:parser.error('test-cell requires --run-id')
+        test_cell(args.run_id);return
     if args.phase in ('preflight','campaign'):
         from oapa_preflight import preflight,campaign
         (preflight if args.phase=='preflight' else campaign)(sys.modules[__name__]);return
