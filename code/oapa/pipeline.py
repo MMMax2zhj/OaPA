@@ -62,20 +62,30 @@ def chosen_masks(batch,modalities,p):
     return matches.argmax(-1),masks
 
 
-def score(table,batch,modalities,p=None):
+def score(table,batch,modalities,p=None,excluded_views=()):
     table=np.asarray(table)
-    if table.shape!=(len(batch),len(views(modalities))) or not np.isfinite(table).all():
+    names=list(views(modalities))
+    excluded=set(excluded_views)
+    if p is not None and excluded:
+        raise ValueError('View exclusion is only defined for fixed-view scoring')
+    unknown=excluded-set(names)
+    if unknown:raise ValueError('Unknown excluded views: '+', '.join(sorted(unknown)))
+    retained=[i for i,name in enumerate(names) if name not in excluded]
+    if not retained:raise ValueError('At least one view must remain for scoring')
+    if table.shape!=(len(batch),len(names)) or not np.isfinite(table).all():
         raise ValueError('Prediction table mismatch')
     y=batch.labels.cpu().numpy()
-    per_view={v:binary_metrics(y,table[:,i]) for i,v in enumerate(views(modalities))}
+    per_view={names[i]:binary_metrics(y,table[:,i]) for i in retained}
     values=[x['macro_f1'] for x in per_view.values()]
     result={'views':per_view,'F_all':float(np.mean(values)),'F_worst':float(min(values)),
-            'F_full':per_view[''.join(modalities)]['macro_f1']}
+            'F_full':per_view[''.join(modalities)]['macro_f1'] if ''.join(modalities) in per_view else None,
+            'selection_score':float(np.mean(values)),'excluded_views':sorted(excluded)}
     if p is not None:
         chosen,masks=chosen_masks(batch,modalities,p)
         repetitions=[binary_metrics(y,table[np.arange(len(batch)),r])['macro_f1'] for r in chosen]
         result.update(mean_macro_f1=float(np.mean(repetitions)),mask_std=float(np.std(repetitions,ddof=1)),
-                      repetitions=repetitions,mask_sha256=hashlib.sha256(masks.tobytes()).hexdigest())
+                      repetitions=repetitions,mask_sha256=hashlib.sha256(masks.tobytes()).hexdigest(),
+                      selection_score=float(np.mean(repetitions)))
     return result
 
 

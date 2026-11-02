@@ -69,8 +69,10 @@ def experts(condition):
     return {v:joblib.load(ROOT/path) for v,path in meta['models'].items()}
 
 
-def fit_experts():
+def fit_experts(conditions=None):
+    selected=set(conditions) if conditions is not None else set(DATA)
     for condition,spec in DATA.items():
+        if condition not in selected:continue
         folder=OUT/'experts'/condition;manifest=folder/'manifest.json'
         if manifest.exists():verify_hashes(read(manifest)['files']);continue
         splits,dims,lengths,modalities,_=data(condition);batch=splits['D_fit']
@@ -98,7 +100,11 @@ def selected_path(folder):
 
 def select(job):
     folder=ROOT/job['run_dir'];dest=folder/'selected_checkpoint.json'
-    if dest.exists():selected_path(folder);return
+    if dest.exists():
+        manifest=read(dest)
+        if manifest.get('protocol_sha256')!=file_sha(PACKAGE/'protocol.json'):
+            raise RuntimeError('Selected checkpoint predates the current selection protocol')
+        selected_path(folder);return
     report=read(folder/'run.json');splits,dims,lengths,modalities,_=data(job['condition'])
     bank=experts(job['condition']);names=list(views(modalities));candidates=[]
     expected=report['recipe']['stages']['J']
@@ -108,8 +114,9 @@ def select(job):
         model=restore(path,report,DEVICE)
         values=extract(model,splits['D_val'],modalities,DEVICE)
         table=route(neural_table(values),names,splits['D_val'],modalities,bank)
-        result=score(table,splits['D_val'],modalities,job['p'])
-        criterion=result['F_all'] if job['p'] is None else result['mean_macro_f1']
+        excluded_views=bank if job['p'] is None else ()
+        result=score(table,splits['D_val'],modalities,job['p'],excluded_views=excluded_views)
+        criterion=result['selection_score']
         candidates.append({'epoch':epoch,'score':criterion,'path':rel(path),'sha256':file_sha(path)})
         del model,values;torch.cuda.empty_cache() if DEVICE.startswith('cuda') else None
     best=max(candidates,key=lambda c:c['score'])
@@ -118,6 +125,7 @@ def select(job):
     write_json(dest,{'path':rel(deployed),'sha256':file_sha(deployed),'epoch':best['epoch'],
                      'score':best['score'],'candidates':candidates,'tie':'earliest','p':job['p'],
                      'selection_split':'D_val','before_VPA':True,
+                     'excluded_selection_views':result['excluded_views'],
                      'protocol_sha256':file_sha(PACKAGE/'protocol.json'),
                      'expert_manifest_sha256':file_sha(OUT/'experts'/job['condition']/'manifest.json')})
 
@@ -188,6 +196,18 @@ def train(job,extra=None,log_suffix=''):
     log=OUT/'logs'/(job['id']+log_suffix+'.log');log.parent.mkdir(parents=True,exist_ok=True)
     with log.open('a',encoding='utf-8') as stream:
         subprocess.run([sys.executable]+argv,cwd=ROOT,stdout=stream,stderr=subprocess.STDOUT,check=True)
+
+
+def train_cell(run_id):
+    matches=[job for job in JOBS if job['id']==run_id]
+    if len(matches)!=1:
+        raise ValueError('Unknown or duplicate run id: '+run_id)
+    job=matches[0]
+    fit_experts([job['condition']])
+    train(job)
+    select(job)
+    calibrate(job)
+    print(json.dumps({'trained':job['id'],'run_dir':job['run_dir'],'D_test':'not_evaluated'}),flush=True)
 
 
 def freeze():
@@ -508,13 +528,16 @@ def export():
 def main():
     global DEVICE
     parser=argparse.ArgumentParser();parser.add_argument('--phase',required=True,
-        choices=['fit-experts','select','calibrate','freeze','evaluate','verify','aggregate','export','preflight','campaign'])
+        choices=['train-cell','fit-experts','select','calibrate','freeze','evaluate','verify','aggregate','export','preflight','campaign'])
     parser.add_argument('--run-id');parser.add_argument('--device',default='cuda');parser.add_argument('--execute',action='store_true')
     args=parser.parse_args();DEVICE=args.device
     torch.set_num_threads(4);torch.backends.cudnn.benchmark=False;torch.backends.cudnn.deterministic=True
     torch.backends.cuda.matmul.allow_tf32=False
     if not args.execute:print('PREVIEW ONLY; add --execute to run '+args.phase);return
     OUT.mkdir(parents=True,exist_ok=True)
+    if args.phase=='train-cell':
+        if not args.run_id:parser.error('train-cell requires --run-id')
+        train_cell(args.run_id);return
     if args.phase in ('preflight','campaign'):
         from oapa_preflight import preflight,campaign
         (preflight if args.phase=='preflight' else campaign)(sys.modules[__name__]);return

@@ -142,7 +142,7 @@
   "expert_models": 5,
   "full_vpa_fits": 120,
   "restricted_vpa_fits": 18,
-  "P0_selection": "Final J, earliest max equal-view Macro-F1 after singleton expert replacement, before VPA",
+  "P0_selection": "Final J, earliest max equal-view Macro-F1 after singleton expert replacement with routed singleton columns excluded from the selection score, before VPA",
   "P1_selection": "Final J, earliest max mean Macro-F1 of ten fixed D_val mixed-mask populations AFTER expert replacement, before VPA; never weighted sum of per-view F1",
   "training_stage_selection": "Teachers/A/B keep original selection; only final J uses deployed expert routing",
   "P0_gate_calibration": "All legal calibration views, class-balanced BCE + .2 visible-branch-weight penalty",

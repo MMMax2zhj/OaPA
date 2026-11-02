@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
+from unittest import mock
 import numpy as np
 import torch
 from sklearn.metrics import f1_score
@@ -34,6 +35,19 @@ class ConstantExpert:
 
 
 class OaPAExperimentTests(unittest.TestCase):
+    def test_train_cell_runs_the_main_pipeline_without_campaign(self):
+        import run_oapa as core
+        job=core.JOBS[0]
+        with mock.patch.object(core,'fit_experts') as fit, \
+             mock.patch.object(core,'train') as train, \
+             mock.patch.object(core,'select') as select, \
+             mock.patch.object(core,'calibrate') as calibrate:
+            core.train_cell(job['id'])
+        fit.assert_called_once_with([job['condition']])
+        train.assert_called_once_with(job)
+        select.assert_called_once_with(job)
+        calibrate.assert_called_once_with(job)
+
     def test_protocol_manifest_is_complete_and_hash_locked(self):
         package=ROOT/'experiments/oapa'
         protocol=json.loads((package/'protocol.json').read_text())
@@ -96,6 +110,17 @@ class OaPAExperimentTests(unittest.TestCase):
         expected=f1_score(b.labels,np.zeros(len(b)),labels=[0,1],average='macro')
         self.assertAlmostEqual(result['F_all'],expected)
         self.assertEqual(len(result['views']),7)
+
+    def test_p0_selection_excludes_routed_singleton_views(self):
+        b=FixtureBatch();names=list(views(('T','V','A')))
+        table=np.zeros((len(b),len(names)))
+        table[:,names.index('V')]=1
+        table[:,names.index('A')]=1
+        result=score(table,b,('T','V','A'),excluded_views=('A','V'))
+        self.assertEqual(result['excluded_views'],['A','V'])
+        self.assertNotIn('A',result['views'])
+        self.assertNotIn('V',result['views'])
+        self.assertEqual(result['selection_score'],result['F_all'])
 
     def test_singleton_experts_leave_joint_views_unchanged(self):
         b=FixtureBatch();original=np.full((len(b),7),.29);names=list(views(('T','V','A')))
